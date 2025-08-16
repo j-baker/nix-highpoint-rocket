@@ -16,6 +16,6 @@ in
   };
   config = lib.mkIf cfg.enable {
     boot.extraModulePackages = [ driver ];
-    boot.initrd.availableKernelModules = "rr3740a";
+    boot.initrd.availableKernelModules = [ "rr3740a" ];
   };
 }
