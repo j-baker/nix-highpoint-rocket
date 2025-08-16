@@ -1,0 +1,18 @@
+name: Run checks
+on:
+  pull_request:
+  push:
+    branches: [main]
+jobs:
+  checks:
+    name: Nix checks
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: DeterminateSystems/determinate-nix-action@v3.8.4
+      - uses: DeterminateSystems/flakehub-cache-action@main
+      - uses: actions/checkout@v4
+      - run: nix flake check
+      - run: nix fmt -- --ci
