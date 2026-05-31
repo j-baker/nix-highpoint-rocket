@@ -1,0 +1,108 @@
+--- a/inc/linux_32mpa/Makefile.def	1970-01-01 01:00:01.000000000 +0100
++++ b/inc/linux_32mpa/Makefile.def	2026-05-31 11:27:45.288888565 +0100
+@@ -181,7 +181,7 @@
+ 	@echo >>$@
+ 	@echo '$$(TARGETNAME)-objs := $$(TARGETOBJS) $$(TARGETMODS)' >>$@
+ 	@echo >>$@
+-	@echo 'EXTRA_CFLAGS := $(C_DEFINES) -Idrivers/scsi -I$$(HPT_ROOT)/inc/linux_32mpa -I$$(HPT_ROOT)/inc -I$$(HPT_ROOT)/osm/linux' >>$@
++	@echo 'ccflags-y := $(C_DEFINES) -Idrivers/scsi -I$$(HPT_ROOT)/inc/linux_32mpa -I$$(HPT_ROOT)/inc -I$$(HPT_ROOT)/osm/linux' >>$@
+ 	@echo >>$@
+ 	@echo '$$(addprefix $$(obj)/,$$(TARGETOBJS:.o=.c)): FORCE' >>$@
+ 	@echo '	@{ test -f $(CURDIR)/$$(notdir $$@) && cp -f $(CURDIR)/$$(notdir $$@) $$@; } ||\' >>$@
+--- a/osm/linux/os_linux.c	1970-01-01 01:00:01.000000000 +0100
++++ b/osm/linux/os_linux.c	2026-05-31 11:27:55.680949333 +0100
+@@ -551,7 +551,7 @@
+ #if LINUX_VERSION_CODE >= KERNEL_VERSION(4,15,0)
+ static void os_timer_for_ldm(struct timer_list *t)
+ {
+-	PVBUS_EXT vbus_ext = (PVBUS_EXT)from_timer(vbus_ext, t, timer);
++	PVBUS_EXT vbus_ext = (PVBUS_EXT)timer_container_of(vbus_ext, t, timer);
+ 	_os_timer_for_ldm(vbus_ext);
+ }
+ #else 
+@@ -568,7 +568,7 @@
+ 
+ 	HPT_ASSERT(vbus_ext->ext_type==EXT_TYPE_VBUS);
+ 	
+-	del_timer(&vbus_ext->timer);
++	timer_delete(&vbus_ext->timer);
+ 	vbus_ext->timer.function = os_timer_for_ldm;
+ #if LINUX_VERSION_CODE < KERNEL_VERSION(4,15,0)
+ 	vbus_ext->timer.data = (unsigned long)vbus_ext;
+--- a/osm/linux/osm_linux.c	1970-01-01 01:00:01.000000000 +0100
++++ b/osm/linux/osm_linux.c	2026-05-31 11:28:09.406029857 +0100
+@@ -1983,6 +1983,10 @@
+ }
+ 
+ #if LINUX_VERSION_CODE >= KERNEL_VERSION(6,10,0) || (RHELV_RELEASE_CODE >= 2310)
++#ifndef BLK_DEF_MAX_SECTORS_CAP
++/* Defined in the kernel's private block/blk.h, not exported to modules. */
++#define BLK_DEF_MAX_SECTORS_CAP (SZ_4M >> SECTOR_SHIFT)
++#endif
+ void blk_queue_max_hw_sectors(struct request_queue *q, unsigned int max_hw_sectors)
+ {
+ 	struct queue_limits *limits = &q->limits;
+@@ -2136,7 +2140,7 @@
+ static void cmd_timeout_sem(struct timer_list *t)
+ {
+ 	PSEM_TIMER psem_tm;
+-	psem_tm = (PSEM_TIMER)from_timer(psem_tm, t, timer);
++	psem_tm = (PSEM_TIMER)timer_container_of(psem_tm, t, timer);
+ 	up(&psem_tm->sem);
+ }
+ #else 
+@@ -2199,10 +2203,10 @@
+ 		if (down_interruptible(&sem_tm.sem))
+ 			down(&sem_tm.sem);
+ #if LINUX_VERSION_CODE >= KERNEL_VERSION(4,15,0)
+-		del_timer_sync(&sem_tm.timer);
+-		destroy_timer_on_stack(&sem_tm.timer);
++		timer_delete_sync(&sem_tm.timer);
++		timer_destroy_on_stack(&sem_tm.timer);
+ #else 
+-		del_timer(&sem_tm.timer);
++		timer_delete(&sem_tm.timer);
+ #endif
+ 	}
+ 
+@@ -2381,7 +2385,7 @@
+ {
+ 
+ 	PSEM_TIMER psem_tm;
+-	psem_tm = (PSEM_TIMER)from_timer(psem_tm, t, timer);
++	psem_tm = (PSEM_TIMER)timer_container_of(psem_tm, t, timer);
+ 	up(&psem_tm->sem);
+ }
+ #else 
+@@ -2427,10 +2431,10 @@
+ 		if (down_interruptible(&sem_tm.sem))
+ 			down(&sem_tm.sem);
+ #if LINUX_VERSION_CODE >= KERNEL_VERSION(4,15,0)		
+-		del_timer_sync(&sem_tm.timer);
+-		destroy_timer_on_stack(&sem_tm.timer);
++		timer_delete_sync(&sem_tm.timer);
++		timer_destroy_on_stack(&sem_tm.timer);
+ #else 
+-		del_timer(&sem_tm.timer);
++		timer_delete(&sem_tm.timer);
+ #endif
+ 	}
+ 
+@@ -2953,7 +2957,7 @@
+ 		if (down_interruptible(&vbus_ext->sem)) {
+ 			os_printk("init interrupted");
+ 			/*need delete time as some timers maybe running*/
+-			del_timer_sync(&vbus_ext->timer);
++			timer_delete_sync(&vbus_ext->timer);
+ 			goto freeirq;
+ 		}
+ 
+@@ -3162,7 +3166,7 @@
+ 
+ 		spin_lock_irqsave(vbus_ext->lock, flags);
+ 
+-		del_timer_sync(&vbus_ext->timer);
++		timer_delete_sync(&vbus_ext->timer);
+ 		ldm_shutdown(vbus);
+ 
+ 		spin_unlock_irqrestore(vbus_ext->lock, flags);
