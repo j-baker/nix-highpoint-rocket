@@ -27,6 +27,8 @@ in
 stdenv.mkDerivation {
   src = extractedSrc;
 
+  patches = [ ./patches/linux-6.18-compat.patch ];
+
   nativeBuildInputs = kernel.moduleBuildDependencies;
   makeFlags = kernelModuleMakeFlags ++ [
     "KERNELDIR=${kernel.dev}/lib/modules/${kernel.modDirVersion}/build"
